@@ -4,34 +4,42 @@ LaunchpadOut {
 	// output (e.g. used to set LEDs)
 	var <colors;
 	var <modeFlags;
-	var matrixIdx, playIdx;
+	var matrixIdx, playIdx, modeIdx;
 	var flashOff = 1;
-	var colorValArray;	
+	var colorValArray;
 	var <pagePadColors;
+	var groupToMethod;
 
 
 	*new {|ktl|
 		^super.new.init(ktl)
 	}
-	
+
 	init {|argKtl|
-		
+
 		ktl = argKtl;
-		
+
 		// out
-		midiOut = MIDIOut(MIDIClient.destinations.indexOf(ktl.destination), ktl.dstID);
-		
-		
+		midiOut = MIDIOut(
+            MIDIClient.destinations.indexOf(ktl.device.destination),
+            ktl.device.dstID);
+
+		groupToMethod = (
+			\bt: \setBtColor,
+			\pad: \setColor,
+			\arr: \setArrowColor
+		);
+
 		// remove latency
 		midiOut.latency = 0;
-		
+
 		colors = (
 			off: 12,
 			lRed: 13,
 			red: 15,
 			lAmber: 29,
 			amber: 63,
-			yellow: 62,
+			yellow: 61,
 			lGreen: 28,
 			green: 60,
 			fRed: 11,
@@ -44,15 +52,20 @@ LaunchpadOut {
 			flash: 8,
 			doubleBuffer: 0
 		);
-		
+
 		// matrix indices
 		matrixIdx = {|i| (0..7) + (i * 16)}!8;
-		
+
 		// Play column indices
-		playIdx = {|i| 0x8 + (0x10*i)}!8;	
+		playIdx = {|i| 0x8 + (0x10*i)}!8;
+
+		modeIdx = (104..111);
 	}
-	
+
 	setColor{|which, color(\red), flash(false)|
+        if (which.isNumber) {
+            which = [which.div(8), which % 8];
+        };
 		midiOut.noteOn(0, matrixIdx[which[0]][which[1]], colors[color])
 	}
 
@@ -60,10 +73,17 @@ LaunchpadOut {
 		midiOut.noteOn(0, playIdx[which], colors[color])
 	}
 
+	setBtColor{ |which, color(\red), flash(false) |
+		midiOut.control(0, modeIdx[which], colors[color]);
+	}
+
+	setGroupColor { | group ... args |
+		this.performList(groupToMethod[group], args);
+	}
 //	setColorInArray {|which, color(\red), flash(false)|
 //		matrixIdx[which[0]][which[1]]
 //	}
-//	
+//
 //	showAreas{|recalc = false|
 //
 //		recalc.if({
@@ -73,7 +93,7 @@ LaunchpadOut {
 //
 //		colorValArray.do{|val, i|
 //			midiOut.noteOn(3, 146, val, 11);
-//		};	
+//		};
 //		// send something strange to reset the mode;
 //		midiOut.noteOn(0, -1, 28);
 //	}
@@ -81,7 +101,7 @@ LaunchpadOut {
 //	pr_colorValArray {
 //		var out = Array.fill2D(8, 8, 12); // all off
 //		var left, top, width, height, indices, colr;
-//		
+//
 //		pagePadColors.keysValuesDo{|where, color|
 //			# left, top, width, height = where.asArray;
 //			colr = colors[color];
@@ -107,15 +127,16 @@ LaunchpadOut {
 //		pagePadActions.removeAt(where);
 //		pagePadColors.removeAt(where);
 //	}
-	
+
 	// flash sync
 	tick{|sync = false|
 		sync.if({
 			flashOff = 0;
 		});
-		
-		midiOut.control(0, 0, 32+flashOff);	
+
+		midiOut.control(0, 0, 32+flashOff);
 		flashOff = (flashOff + 1)%2;
 	}
+
 
 }
